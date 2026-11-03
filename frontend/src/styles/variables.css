@@ -1,0 +1,80 @@
+:root {
+  /* Brand Gradients & Accents */
+  --brand-primary: #7c3aed;
+  --brand-primary-hover: #6d28d9;
+  --brand-secondary: #6366f1;
+  --brand-gradient: linear-gradient(135deg, #6366f1 0%, #7c3aed 50%, #9333ea 100%);
+  --brand-gradient-glow: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(147, 51, 234, 0.2) 100%);
+  --brand-accent-glow: #a855f7;
+
+  /* App Backgrounds */
+  --bg-app: #f4f5fb;
+  --bg-card: #ffffff;
+  --bg-card-subtle: #f8fafc;
+  --bg-hover: #f1f5f9;
+  
+  /* Sidebar (Dark Neon Aesthetic from reference) */
+  --sidebar-bg: #0b091a;
+  --sidebar-gradient: linear-gradient(180deg, #0c0a1f 0%, #100d2b 60%, #1c1145 100%);
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-text: #94a3b8;
+  --sidebar-text-active: #ffffff;
+  --sidebar-item-active-bg: linear-gradient(90deg, #6366f1 0%, #7c3aed 100%);
+  --sidebar-item-hover: rgba(255, 255, 255, 0.06);
+  --sidebar-card-bg: linear-gradient(135deg, rgba(88, 28, 135, 0.35) 0%, rgba(30, 27, 75, 0.7) 100%);
+  --sidebar-card-border: rgba(168, 85, 247, 0.28);
+
+  /* Header */
+  --header-bg: #ffffff;
+  --header-border: #e6e9f2;
+  --header-height: 70px;
+
+  /* Text Colors */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --text-inverse: #ffffff;
+
+  /* Borders & Dividers */
+  --border-color: #e5e8f0;
+  --border-light: #f1f3f9;
+  --border-focus: #7c3aed;
+
+  /* Status Colors (Badges, Trackers) */
+  --status-on-track-bg: #dcfce7;
+  --status-on-track-text: #15803d;
+  --status-on-track-border: #bbf7d0;
+
+  --status-warning-bg: #fef3c7;
+  --status-warning-text: #b45309;
+  --status-warning-border: #fde68a;
+
+  --status-danger-bg: #fee2e2;
+  --status-danger-text: #b91c1c;
+  --status-danger-border: #fecaca;
+
+  --status-info-bg: #ede9fe;
+  --status-info-text: #6d28d9;
+  --status-info-border: #ddd6fe;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px -1px rgba(15, 23, 42, 0.05), 0 2px 4px -2px rgba(15, 23, 42, 0.03);
+  --shadow-lg: 0 10px 25px -3px rgba(15, 23, 42, 0.07), 0 4px 6px -4px rgba(15, 23, 42, 0.03);
+  --shadow-glow: 0 0 20px rgba(124, 58, 237, 0.35);
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Layout */
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 80px;
+
+  /* Typography */
+  --font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
