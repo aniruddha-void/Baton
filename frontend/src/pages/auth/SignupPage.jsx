@@ -35,6 +35,7 @@ export default function SignupPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [statusMessage, setStatusMessage] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   // Calculate password strength dynamically
   const calculateStrength = (pwd) => {
@@ -100,12 +101,26 @@ export default function SignupPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (validateForm()) {
-      // Call AuthContext signup — backend integration will replace this later
-      signup({ fullName: formData.fullName, email: formData.email });
-      navigate('/dashboard', { replace: true });
+      setSubmitting(true);
+      setStatusMessage(null);
+      try {
+        await signup({
+          fullName: formData.fullName,
+          email: formData.email,
+          password: formData.password,
+        });
+        navigate('/dashboard', { replace: true });
+      } catch (err) {
+        setStatusMessage({
+          type: 'error',
+          text: err.message || 'Signup failed. Please try again.',
+        });
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
 
@@ -427,8 +442,8 @@ export default function SignupPage() {
             )}
 
             {/* Primary Submit Button */}
-            <button type="submit" className="btn-auth-primary">
-              <span>Create Account</span>
+            <button type="submit" className="btn-auth-primary" disabled={submitting}>
+              <span>{submitting ? 'Creating Account…' : 'Create Account'}</span>
               <ArrowRight size={16} />
             </button>
 
@@ -496,4 +511,3 @@ export default function SignupPage() {
     </div>
   );
 }
-

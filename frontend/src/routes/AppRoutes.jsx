@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from '../pages/landing/LandingPage';
 import LoginPage from '../pages/auth/LoginPage';
 import SignupPage from '../pages/auth/SignupPage';
+import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage';
+import ResetPasswordPage from '../pages/auth/ResetPasswordPage';
 import AppLayout from '../layouts/AppLayout';
 import DashboardPage from '../pages/app/DashboardPage';
 import ProjectsPage from '../pages/app/ProjectsPage';
@@ -10,12 +12,12 @@ import CreateProjectPage from '../pages/app/CreateProjectPage';
 import ProjectDetailPage from '../pages/app/ProjectDetailPage';
 import ImportAnalyzePage from '../pages/app/ImportAnalyzePage';
 import ReviewVerifyPage from '../pages/app/ReviewVerifyPage';
+import HandoverReportsPage from '../pages/app/HandoverReportsPage';
 import TasksPage from '../pages/app/TasksPage';
 import TimelinePage from '../pages/app/TimelinePage';
-import HandoverReportsPage from '../pages/app/HandoverReportsPage';
+import TeamPage from '../pages/app/TeamPage';
 import AiAssistantPage from '../pages/app/AiAssistantPage';
 import SettingsPage from '../pages/app/SettingsPage';
-import TeamPage from '../pages/app/TeamPage';
 import PrivateRoute from '../components/common/PrivateRoute';
 
 /** Wraps AppLayout so all child routes are auth-gated */
@@ -37,6 +39,8 @@ export default function AppRoutes() {
         {/* Public: Authentication Screens */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
         {/* Protected: Application Workspace — all routes require auth */}
         <Route element={<ProtectedLayout />}>

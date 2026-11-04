@@ -34,7 +34,10 @@ export default function LoginPage() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
-  const [statusMessage, setStatusMessage] = useState(null);
+  const [statusMessage, setStatusMessage] = useState(
+    location.state?.message ? { type: 'success', text: location.state.message } : null
+  );
+  const [submitting, setSubmitting] = useState(false);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -71,12 +74,26 @@ export default function LoginPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (validateForm()) {
-      // Call AuthContext login — backend integration will replace this later
-      login({ email: formData.email });
-      navigate(from, { replace: true });
+      setSubmitting(true);
+      setStatusMessage(null);
+      try {
+        await login({
+          email: formData.email,
+          password: formData.password,
+          rememberMe: formData.rememberMe,
+        });
+        navigate(from, { replace: true });
+      } catch (err) {
+        setStatusMessage({
+          type: 'error',
+          text: err.message || 'Invalid email or password.',
+        });
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
 
@@ -264,18 +281,9 @@ export default function LoginPage() {
                 <span>Remember me</span>
               </label>
 
-              <button
-                type="button"
-                className="forgot-password-link"
-                onClick={() =>
-                  setStatusMessage({
-                    type: 'info',
-                    text: 'Password recovery flow is ready for backend email reset endpoint.',
-                  })
-                }
-              >
+              <Link to="/forgot-password" className="forgot-password-link">
                 Forgot password?
-              </button>
+              </Link>
             </div>
 
             {/* Status Banner */}
@@ -291,8 +299,8 @@ export default function LoginPage() {
             )}
 
             {/* Primary Submit Button */}
-            <button type="submit" className="btn-auth-primary">
-              <span>Log In</span>
+            <button type="submit" className="btn-auth-primary" disabled={submitting}>
+              <span>{submitting ? 'Logging In…' : 'Log In'}</span>
               <ArrowRight size={16} />
             </button>
 
@@ -360,4 +368,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
