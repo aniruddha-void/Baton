@@ -11,7 +11,7 @@ export async function connectDB() {
       serverSelectionTimeoutMS: 5000,
     });
 
-    console.log(`[Database] MongoDB connected: ${conn.connection.host}/${conn.connection.name}`);
+    console.log(`MongoDB Connected Successfully`);
 
     mongoose.connection.on('error', (err) => {
       console.error(`[Database Error] ${err.message}`);

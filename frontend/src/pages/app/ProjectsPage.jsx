@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   FolderKanban,
@@ -19,86 +19,167 @@ import {
   ExternalLink,
   Trash2,
 } from 'lucide-react';
-import './ProjectsPage.css';
-import { loadCreatedProjects } from './CreateProjectPage';
 
-/* ─────────────────────────────────────────────
-   SAMPLE DATA — replace with API call when backend is ready.
-   Each project mirrors the reference screenshot exactly.
-   Icons are lucide-react components assigned per project.
-───────────────────────────────────────────── */
-const SAMPLE_PROJECTS = [
+import './ProjectsPage.css';
+import { api } from '../../services/apiClient';
+
+const AVATAR_COLORS = [
+  '#7c3aed',
+  '#6366f1',
+  '#d97706',
+  '#16a34a',
+  '#0284c7',
+];
+
+/** Demo projects shown alongside real MongoDB projects. */
+const DEMO_PROJECTS = [
   {
-    id: 'proj-1',
+    id: 'demo-campusconnect',
+    demo: true,
     name: 'CampusConnect',
-    description: 'College platform for events, notices and student services.',
-    iconKey: 'code',
-    status: 'On Track',
-    statusType: 'on-track',
-    progress: 72,
-    team: ['A', 'R', 'H', 'V'],
-    extraMembers: 4,
-    lastUpdated: 'Oct 31, 2026',
-  },
-  {
-    id: 'proj-2',
-    name: 'NotesofAni',
-    description: 'Notes sharing and PYQ resources platform.',
-    iconKey: 'layers',
-    status: 'On Track',
-    statusType: 'on-track',
-    progress: 88,
-    team: ['A', 'R', 'H', 'V'],
-    extraMembers: 0,
-    lastUpdated: 'Oct 30, 2026',
-  },
-  {
-    id: 'proj-3',
-    name: 'Bunexa AI',
-    description: 'AI study assistant for students.',
-    iconKey: 'sparkles',
+    description: 'A unified campus engagement platform connecting students, clubs, and events.',
     status: 'In Progress',
     statusType: 'in-progress',
-    progress: 60,
-    team: ['A', 'R', 'H', 'V'],
-    extraMembers: 0,
-    lastUpdated: 'Oct 29, 2026',
-  },
-  {
-    id: 'proj-4',
-    name: 'EventSphere',
-    description: 'Event management and coordination system.',
-    iconKey: 'calendar',
-    status: 'In Progress',
-    statusType: 'in-progress',
-    progress: 54,
-    team: ['A', 'R', 'H', 'V'],
+    progress: 68,
+    team: ['A', 'RY', 'HS', 'VC'],
     extraMembers: 0,
     lastUpdated: 'Oct 28, 2026',
+    iconKey: 'code',
+    category: 'Web App',
   },
   {
-    id: 'proj-5',
-    name: 'Project Handover (Demo)',
-    description: 'Sample project to demonstrate Baton workflow.',
-    iconKey: 'file',
-    status: 'Review',
-    statusType: 'review',
-    progress: 100,
-    team: ['A', 'R', 'H', 'V'],
+    id: 'demo-bunexa',
+    demo: true,
+    name: 'NotesOfAni',
+    description: 'A collaborative study-notes platform with AI-powered transcription and search.',
+    status: 'On Track',
+    statusType: 'on-track',
+    progress: 82,
+    team: ['A', 'RY'],
     extraMembers: 0,
-    lastUpdated: 'Oct 27, 2026',
+    lastUpdated: 'Oct 25, 2026',
+    iconKey: 'layers',
+    category: 'Mobile App',
   },
 ];
 
-const ALL_PROJECTS = [...loadCreatedProjects(), ...SAMPLE_PROJECTS];
-const AVATAR_COLORS = ['#7c3aed', '#6366f1', '#d97706', '#16a34a', '#0284c7'];
+const demoBadgeStyle = {
+  fontSize: 11,
+  fontWeight: 600,
+  color: '#7c3aed',
+  background: '#ede9fe',
+  padding: '2px 8px',
+  borderRadius: 999,
+  marginLeft: 8,
+};
 
-/** Resolve any project (created or sample) by its id. */
-export function getProjectById(id) {
-  return ALL_PROJECTS.find((p) => p.id === id) || null;
+const overlayStyle = {
+  position: 'fixed',
+  inset: 0,
+  background: 'rgba(15,23,42,0.5)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 1000,
+};
+
+const dialogStyle = {
+  background: '#ffffff',
+  borderRadius: 16,
+  padding: 24,
+  width: 'min(420px, 90vw)',
+  boxShadow: '0 20px 50px rgba(15,23,42,0.25)',
+};
+
+const secondaryBtnStyle = {
+  padding: '8px 16px',
+  borderRadius: 10,
+  border: '1px solid #e2e8f0',
+  background: '#ffffff',
+  color: '#475569',
+  cursor: 'pointer',
+  fontWeight: 600,
+  fontSize: 14,
+};
+
+const dangerBtnStyle = {
+  padding: '8px 16px',
+  borderRadius: 10,
+  border: 'none',
+  background: '#dc2626',
+  color: '#ffffff',
+  cursor: 'pointer',
+  fontWeight: 600,
+  fontSize: 14,
+};
+
+const ITEMS_PER_PAGE = 5;
+
+const TABS = [
+  { key: 'all', label: 'All Projects' },
+  { key: 'active', label: 'Active' },
+  { key: 'in-progress', label: 'In Progress' },
+  { key: 'review', label: 'Review' },
+  { key: 'completed', label: 'Completed' },
+];
+
+function getStatusType(status) {
+  const normalizedStatus = String(status || '').toLowerCase();
+
+  if (normalizedStatus === 'on track') return 'on-track';
+  if (normalizedStatus === 'in progress') return 'in-progress';
+  if (normalizedStatus === 'review') return 'review';
+  if (normalizedStatus === 'completed') return 'completed';
+  if (normalizedStatus === 'on hold') return 'on-hold';
+
+  return 'in-progress';
 }
 
-/* Map iconKey → lucide-react component */
+function formatDate(date) {
+  if (!date) return '—';
+
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return '—';
+  }
+
+  return parsedDate.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function normalizeProject(project) {
+  const team = Array.isArray(project.team) ? project.team : [];
+
+  return {
+    ...project,
+    id: project._id || project.id,
+    description: project.description || '',
+    status: project.status || 'In Progress',
+    statusType: getStatusType(project.status),
+    progress: Number(project.progress) || 0,
+    team: team.map((member) => {
+      if (typeof member === 'string') {
+        return member;
+      }
+
+      return (
+        member?.name?.charAt(0) ||
+        member?.username?.charAt(0) ||
+        member?.email?.charAt(0) ||
+        'U'
+      );
+    }),
+    extraMembers: Math.max(team.length - 4, 0),
+    lastUpdated: formatDate(project.updatedAt || project.createdAt),
+    iconKey: 'code',
+  };
+}
+
+/* Resolve project icons */
 function ProjectIcon({ iconKey, size = 20 }) {
   const icons = {
     code: Code2,
@@ -107,7 +188,9 @@ function ProjectIcon({ iconKey, size = 20 }) {
     calendar: CalendarClock,
     file: FileText,
   };
+
   const Icon = icons[iconKey] || FolderKanban;
+
   return <Icon size={size} />;
 }
 
@@ -115,9 +198,13 @@ function ProjectIcon({ iconKey, size = 20 }) {
 function StatCard({ icon: Icon, count, label, iconColor, iconBg }) {
   return (
     <div className="pl-stat-card">
-      <div className="pl-stat-icon" style={{ background: iconBg, color: iconColor }}>
+      <div
+        className="pl-stat-icon"
+        style={{ background: iconBg, color: iconColor }}
+      >
         <Icon size={20} />
       </div>
+
       <div className="pl-stat-text">
         <span className="pl-stat-count">{count}</span>
         <span className="pl-stat-label">{label}</span>
@@ -126,49 +213,113 @@ function StatCard({ icon: Icon, count, label, iconColor, iconBg }) {
   );
 }
 
-const ITEMS_PER_PAGE = 5;
-
-const TABS = [
-  { key: 'all', label: 'All Projects', filter: () => true },
-  { key: 'active', label: 'Active', filter: (p) => p.statusType === 'on-track' },
-  { key: 'in-progress', label: 'In Progress', filter: (p) => p.statusType === 'in-progress' },
-  { key: 'review', label: 'Review', filter: (p) => p.statusType === 'review' },
-  { key: 'completed', label: 'Completed', filter: (p) => p.statusType === 'completed' },
-];
-
+export function getProjectById(id) {
+  const demo = DEMO_PROJECTS.find((p) => p.id === id);
+  return demo ? { ...demo } : null;
+}
 export default function ProjectsPage() {
   const navigate = useNavigate();
+
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [activeMenu, setActiveMenu] = useState(null);
 
-  /* Derive counts for tab labels */
-  const counts = useMemo(() => ({
-    all: ALL_PROJECTS.length,
-    active: ALL_PROJECTS.filter((p) => p.statusType === 'on-track').length,
-    'in-progress': ALL_PROJECTS.filter((p) => p.statusType === 'in-progress').length,
-    review: ALL_PROJECTS.filter((p) => p.statusType === 'review').length,
-    completed: ALL_PROJECTS.filter((p) => p.statusType === 'completed').length,
-  }), []);
+  /* Fetch projects from backend */
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        setLoading(true);
+        setError('');
 
-  /* Filtered + searched list */
+        const response = await api.get('/projects');
+
+        const fetchedProjects = (response?.data?.projects || []).map(normalizeProject);
+        const seenIds = new Set(fetchedProjects.map((p) => p.id));
+        const demoProjects = DEMO_PROJECTS.filter((d) => !seenIds.has(d.id));
+
+        setProjects([...demoProjects, ...fetchedProjects]);
+      } catch (err) {
+        setError(err.message || 'Failed to load projects.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProjects();
+  }, []);
+
+  /* Project counts */
+  const counts = useMemo(() => {
+    return {
+      all: projects.length,
+      active: projects.filter((project) => project.statusType === 'on-track')
+        .length,
+      'in-progress': projects.filter(
+        (project) => project.statusType === 'in-progress'
+      ).length,
+      review: projects.filter((project) => project.statusType === 'review')
+        .length,
+      completed: projects.filter(
+        (project) => project.statusType === 'completed'
+      ).length,
+    };
+  }, [projects]);
+
+  /* Filter and search projects */
   const filtered = useMemo(() => {
-    const tabFn = TABS.find((t) => t.key === activeTab)?.filter ?? (() => true);
-    const q = searchQuery.trim().toLowerCase();
-    return ALL_PROJECTS.filter((p) => {
-      if (!tabFn(p)) return false;
-      if (q && !p.name.toLowerCase().includes(q) && !p.description.toLowerCase().includes(q)) return false;
+    const query = searchQuery.trim().toLowerCase();
+
+    return projects.filter((project) => {
+      if (activeTab === 'active' && project.statusType !== 'on-track') {
+        return false;
+      }
+
+      if (
+        activeTab === 'in-progress' &&
+        project.statusType !== 'in-progress'
+      ) {
+        return false;
+      }
+
+      if (activeTab === 'review' && project.statusType !== 'review') {
+        return false;
+      }
+
+      if (
+        activeTab === 'completed' &&
+        project.statusType !== 'completed'
+      ) {
+        return false;
+      }
+
+      if (
+        query &&
+        !project.name.toLowerCase().includes(query) &&
+        !project.description.toLowerCase().includes(query)
+      ) {
+        return false;
+      }
+
       return true;
     });
-  }, [activeTab, searchQuery]);
+  }, [projects, activeTab, searchQuery]);
 
-  /* Paginated slice */
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  /* Pagination */
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filtered.length / ITEMS_PER_PAGE)
+  );
+
   const safeCurrentPage = Math.min(currentPage, totalPages);
+
   const paginated = filtered.slice(
     (safeCurrentPage - 1) * ITEMS_PER_PAGE,
-    safeCurrentPage * ITEMS_PER_PAGE,
+    safeCurrentPage * ITEMS_PER_PAGE
   );
 
   const handleTabChange = (key) => {
@@ -176,39 +327,59 @@ export default function ProjectsPage() {
     setCurrentPage(1);
   };
 
-  const handleSearchChange = (e) => {
-    setSearchQuery(e.target.value);
+  const handleSearchChange = (event) => {
+    setSearchQuery(event.target.value);
     setCurrentPage(1);
   };
 
-  /* Stat strip values */
-  const onTrackCount = counts['active'];
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+  const closeConfirmDelete = () => setConfirmDeleteId(null);
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDeleteId) return;
+    try {
+      await api.delete(`/projects/${confirmDeleteId}`);
+      setProjects((prev) => prev.filter((p) => p.id !== confirmDeleteId));
+      setActiveMenu(null);
+      setConfirmDeleteId(null);
+    } catch (err) {
+      setError(err.message || 'Failed to delete project.');
+      setConfirmDeleteId(null);
+    }
+  };
+
+  const onTrackCount = counts.active;
   const inProgressCount = counts['in-progress'];
-  const reviewCount = counts['review'];
-  const completedCount = counts['completed'];
+  const reviewCount = counts.review;
+  const completedCount = counts.completed;
 
   return (
     <div className="projects-page">
-      {/* ── PAGE HEADER ─────────────────────────────────── */}
+      {/* PAGE HEADER */}
       <div className="projects-page-header">
         <div className="projects-page-title-group">
           <div className="projects-page-icon">
             <FolderKanban size={22} />
           </div>
+
           <div className="projects-page-heading-text">
             <h1 className="projects-page-title">Projects</h1>
+
             <p className="projects-page-subtitle">
-              Manage all your projects, track progress, and generate handover reports.
+              Manage all your projects, track progress, and generate handover
+              reports.
             </p>
           </div>
         </div>
+
         <Link to="/projects/create" className="btn-create-project">
           <Plus size={16} />
           <span>Create Project</span>
         </Link>
       </div>
 
-      {/* ── STAT STRIP ──────────────────────────────────── */}
+      {/* STAT STRIP */}
       <div className="projects-stat-strip">
         <StatCard
           icon={FolderKanban}
@@ -217,6 +388,7 @@ export default function ProjectsPage() {
           iconBg="#f3e8ff"
           iconColor="#7c3aed"
         />
+
         <StatCard
           icon={CheckCircle2}
           count={onTrackCount}
@@ -224,6 +396,7 @@ export default function ProjectsPage() {
           iconBg="#dcfce7"
           iconColor="#16a34a"
         />
+
         <StatCard
           icon={Clock}
           count={inProgressCount}
@@ -231,6 +404,7 @@ export default function ProjectsPage() {
           iconBg="#e0f2fe"
           iconColor="#0284c7"
         />
+
         <StatCard
           icon={Flag}
           count={reviewCount}
@@ -238,6 +412,7 @@ export default function ProjectsPage() {
           iconBg="#fef3c7"
           iconColor="#b45309"
         />
+
         <StatCard
           icon={CheckCircle2}
           count={completedCount}
@@ -247,27 +422,29 @@ export default function ProjectsPage() {
         />
       </div>
 
-      {/* ── FILTER TABS + SEARCH ────────────────────────── */}
+      {/* FILTER TABS AND SEARCH */}
       <div className="projects-toolbar">
-        {/* Tabs */}
         <div className="projects-tab-row">
           {TABS.map((tab) => (
             <button
               key={tab.key}
               type="button"
-              className={`projects-tab-btn ${activeTab === tab.key ? 'active' : ''}`}
+              className={`projects-tab-btn ${activeTab === tab.key ? 'active' : ''
+                }`}
               onClick={() => handleTabChange(tab.key)}
             >
               {tab.label}{' '}
-              <span className="tab-count-badge">({counts[tab.key]})</span>
+              <span className="tab-count-badge">
+                ({counts[tab.key]})
+              </span>
             </button>
           ))}
         </div>
 
-        {/* Search + Filter */}
         <div className="projects-search-group">
           <div className="projects-search-box">
             <Search size={15} className="search-ico" />
+
             <input
               type="text"
               className="projects-search-input"
@@ -277,25 +454,48 @@ export default function ProjectsPage() {
               aria-label="Search projects"
             />
           </div>
-          <button type="button" className="btn-filter" aria-label="Advanced filter">
+
+          <button
+            type="button"
+            className="btn-filter"
+            aria-label="Advanced filter"
+          >
             <SlidersHorizontal size={15} />
             <span>Filter</span>
           </button>
         </div>
       </div>
 
-      {/* ── PROJECTS TABLE ──────────────────────────────── */}
+      {/* PROJECTS TABLE */}
       <div className="projects-table-card">
-        {filtered.length === 0 ? (
-          /* Empty State */
+        {loading ? (
+          <div className="projects-empty-state">
+            <p>Loading projects...</p>
+          </div>
+        ) : error ? (
+          <div className="projects-empty-state">
+            <h3>Unable to load projects</h3>
+            <p>{error}</p>
+            <button
+              type="button"
+              className="btn-create-project"
+              onClick={() => window.location.reload()}
+            >
+              Try Again
+            </button>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="projects-empty-state">
             <FolderKanban size={42} className="empty-state-icon" />
+
             <h3>No projects found</h3>
+
             <p>
               {searchQuery
                 ? `No projects match "${searchQuery}". Try a different search term.`
                 : 'No projects in this category yet.'}
             </p>
+
             <Link to="/projects/create" className="btn-create-project">
               <Plus size={15} />
               <span>Create Project</span>
@@ -314,6 +514,7 @@ export default function ProjectsPage() {
                   <th className="col-actions">Actions</th>
                 </tr>
               </thead>
+
               <tbody>
                 {paginated.map((project) => (
                   <tr
@@ -322,69 +523,112 @@ export default function ProjectsPage() {
                     onClick={() => navigate(`/projects/${project.id}`)}
                     style={{ cursor: 'pointer' }}
                   >
-                    {/* Project Name + Description */}
+                    {/* PROJECT NAME */}
                     <td className="col-project">
                       <div className="project-cell">
                         <div className="project-icon-box">
-                          <ProjectIcon iconKey={project.iconKey} size={19} />
+                          <ProjectIcon
+                            iconKey={project.iconKey}
+                            size={19}
+                          />
                         </div>
+
                         <div className="project-info">
-                          <span className="project-name">{project.name}</span>
-                          <span className="project-desc">{project.description}</span>
+                          <span className="project-name">
+                            {project.name}
+                            {project.demo && (
+                              <span style={demoBadgeStyle}>Demo</span>
+                            )}
+                          </span>
+
+                          <span className="project-desc">
+                            {project.description}
+                          </span>
                         </div>
                       </div>
                     </td>
 
-                    {/* Team Avatars */}
-                    <td className="col-team" onClick={(e) => e.stopPropagation()}>
+                    {/* TEAM */}
+                    <td
+                      className="col-team"
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       <div className="team-avatars">
-                        {project.team.slice(0, 4).map((initial, i) => (
+                        {project.team.slice(0, 4).map((initial, index) => (
                           <div
-                            key={i}
+                            key={index}
                             className="member-avatar"
-                            style={{ background: AVATAR_COLORS[i % AVATAR_COLORS.length] }}
+                            style={{
+                              background:
+                                AVATAR_COLORS[
+                                index % AVATAR_COLORS.length
+                                ],
+                            }}
                             title={`Team member ${initial}`}
                           >
                             {initial}
                           </div>
                         ))}
+
                         {project.extraMembers > 0 && (
-                          <div className="member-avatar extra">+{project.extraMembers}</div>
+                          <div className="member-avatar extra">
+                            +{project.extraMembers}
+                          </div>
                         )}
                       </div>
                     </td>
 
-                    {/* Progress Bar + Value */}
-                    <td className="col-progress" onClick={(e) => e.stopPropagation()}>
+                    {/* PROGRESS */}
+                    <td
+                      className="col-progress"
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       <div className="progress-wrapper">
                         <div className="progress-track">
                           <div
                             className="progress-fill"
-                            style={{ width: `${project.progress}%` }}
+                            style={{
+                              width: `${project.progress}%`,
+                            }}
                           />
                         </div>
-                        <span className="progress-pct">{project.progress}%</span>
+
+                        <span className="progress-pct">
+                          {project.progress}%
+                        </span>
                       </div>
                     </td>
 
-                    {/* Status */}
-                    <td className="col-status" onClick={(e) => e.stopPropagation()}>
-                      <span className={`status-badge ${project.statusType}`}>
+                    {/* STATUS */}
+                    <td
+                      className="col-status"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <span
+                        className={`status-badge ${project.statusType}`}
+                      >
                         {project.status}
                       </span>
                     </td>
 
-                    {/* Last Updated */}
-                    <td className="col-updated">{project.lastUpdated}</td>
+                    {/* LAST UPDATED */}
+                    <td className="col-updated">
+                      {project.lastUpdated}
+                    </td>
 
-                    {/* Actions */}
-                    <td className="col-actions" onClick={(e) => e.stopPropagation()}>
+                    {/* ACTIONS */}
+                    <td
+                      className="col-actions"
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       <div className="row-actions">
                         <button
                           type="button"
                           className="btn-row-action"
                           onClick={() =>
-                            setActiveMenu(activeMenu === project.id ? null : project.id)
+                            setActiveMenu(
+                              activeMenu === project.id ? null : project.id
+                            )
                           }
                           aria-label="Project options"
                         >
@@ -404,6 +648,7 @@ export default function ProjectsPage() {
                               <ExternalLink size={13} />
                               <span>View Project</span>
                             </button>
+
                             <button
                               type="button"
                               className="action-menu-item"
@@ -415,11 +660,13 @@ export default function ProjectsPage() {
                               <FileText size={13} />
                               <span>Handover Report</span>
                             </button>
+
                             <div className="action-menu-divider" />
+
                             <button
                               type="button"
                               className="action-menu-item danger"
-                              onClick={() => setActiveMenu(null)}
+                              onClick={() => setConfirmDeleteId(project.id)}
                             >
                               <Trash2 size={13} />
                               <span>Delete</span>
@@ -433,33 +680,45 @@ export default function ProjectsPage() {
               </tbody>
             </table>
 
-            {/* Pagination */}
+            {/* PAGINATION */}
             <div className="projects-pagination">
               <span className="pagination-info">
                 Showing {(safeCurrentPage - 1) * ITEMS_PER_PAGE + 1}–
-                {Math.min(safeCurrentPage * ITEMS_PER_PAGE, filtered.length)} of{' '}
-                {filtered.length} project{filtered.length !== 1 ? 's' : ''}
+                {Math.min(
+                  safeCurrentPage * ITEMS_PER_PAGE,
+                  filtered.length
+                )}{' '}
+                of {filtered.length} project
+                {filtered.length !== 1 ? 's' : ''}
               </span>
 
               <div className="pagination-controls">
                 <button
                   type="button"
                   className="pag-btn"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  onClick={() =>
+                    setCurrentPage((page) => Math.max(1, page - 1))
+                  }
                   disabled={safeCurrentPage === 1}
                   aria-label="Previous page"
                 >
                   <ChevronLeft size={15} />
                 </button>
 
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                {Array.from(
+                  { length: totalPages },
+                  (_, index) => index + 1
+                ).map((page) => (
                   <button
                     key={page}
                     type="button"
-                    className={`pag-btn ${safeCurrentPage === page ? 'active' : ''}`}
+                    className={`pag-btn ${safeCurrentPage === page ? 'active' : ''
+                      }`}
                     onClick={() => setCurrentPage(page)}
                     aria-label={`Page ${page}`}
-                    aria-current={safeCurrentPage === page ? 'page' : undefined}
+                    aria-current={
+                      safeCurrentPage === page ? 'page' : undefined
+                    }
                   >
                     {page}
                   </button>
@@ -468,7 +727,11 @@ export default function ProjectsPage() {
                 <button
                   type="button"
                   className="pag-btn"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  onClick={() =>
+                    setCurrentPage((page) =>
+                      Math.min(totalPages, page + 1)
+                    )
+                  }
                   disabled={safeCurrentPage === totalPages}
                   aria-label="Next page"
                 >
@@ -479,7 +742,26 @@ export default function ProjectsPage() {
           </>
         )}
       </div>
+
+      {/* Delete confirmation overlay */}
+      {confirmDeleteId && (
+        <div style={overlayStyle} onClick={closeConfirmDelete}>
+          <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: 0, fontSize: 18, color: '#0f172a' }}>Delete project?</h3>
+            <p style={{ margin: '8px 0 20px', color: '#64748b', fontSize: 14, lineHeight: 1.5 }}>
+              This will permanently delete this project. This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button type="button" style={secondaryBtnStyle} onClick={closeConfirmDelete}>
+                Cancel
+              </button>
+              <button type="button" style={dangerBtnStyle} onClick={handleConfirmDelete}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

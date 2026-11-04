@@ -6,6 +6,9 @@ import mongoSanitize from 'express-mongo-sanitize';
 
 import authRoutes from './modules/auth/auth.routes.js';
 import userRoutes from './modules/users/user.routes.js';
+import projectRoutes from './modules/projects/project.routes.js';
+import fileRoutes from './modules/files/file.routes.js';
+import assistantRoutes from './modules/ai/ai.routes.js';
 
 import { generalLimiter } from './middlewares/rateLimiter.js';
 import { notFound, errorHandler } from './middlewares/errorHandler.js';
@@ -67,6 +70,9 @@ app.get('/api/health', (req, res) => {
 // Mount module routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/files', fileRoutes);
+app.use('/api/assistant', assistantRoutes);
 
 // 404 handler
 app.use(notFound);

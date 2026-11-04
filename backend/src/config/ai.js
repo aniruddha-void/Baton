@@ -1,11 +1,39 @@
 /**
  * AI Service Wrapper
  * Enforces API key retrieval from environment, strict timeout control,
- * character/token input limits to mitigate injection/cost spikes, and fallback mocks.
+ * and character/token input limits to mitigate injection/cost spikes.
+ * No silent mock fallback: if the provider key is missing or a live call
+ * fails, the error is surfaced so callers can show it to the user.
  */
+
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+import { AppError } from '../utils/appError.js';
+
+// Load backend/.env explicitly and before this module is evaluated.
+// ESM evaluates static imports (including this file, reached via app.js ->
+// assistantRoutes -> ai.controller.js -> ai.js) before server.js's own
+// dotenv.config() runs, so we load the env file here to ensure
+// process.env.AI_API_KEY is present when AIService is constructed.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const MAX_INPUT_CHARS = 35000;
 const DEFAULT_TIMEOUT_MS = 30000;
+
+// Known placeholder values that must be treated as "not configured".
+const AI_PLACEHOLDER_KEYS = [
+  'your_gemini_or_openai_api_key_here',
+  'your_ai_api_key_here',
+];
+
+// Google Gemini REST endpoint (Google AI Studio API key).
+// The key is sent via the x-goog-api-key header only — never in the URL,
+// logs, or browser bundles.
+const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
+const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 
 export class AIService {
   constructor() {
@@ -29,105 +57,67 @@ export class AIService {
   }
 
   /**
-   * Universal completion wrapper
+   * Universal completion wrapper.
+   * Returns { text, mock }. If no real provider key is configured, an
+   * AppError is thrown instead of returning a fake mock, so the callers can
+   * tell the user exactly what is missing. If a key IS configured and the
+   * live call fails, the error is propagated as-is.
    */
   async generateCompletion(prompt, systemPrompt = 'You are Baton AI, a senior project knowledge handover assistant.') {
     const safePrompt = this.sanitizeInput(prompt);
 
-    if (!this.apiKey || this.apiKey === 'your_gemini_or_openai_api_key_here') {
-      return this.fallbackCompletion(safePrompt);
+    if (!this.apiKey || AI_PLACEHOLDER_KEYS.includes(this.apiKey)) {
+      throw new AppError(
+        'AI API key is not configured. Set AI_API_KEY in backend/.env to enable the AI assistant.',
+        503,
+      );
     }
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
-      // Supports standard OpenAI-compatible or Gemini REST endpoint
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
+      // Google Gemini REST API (generateContent).
+      const response = await fetch(
+        `${GEMINI_BASE_URL}/models/${GEMINI_MODEL}:generateContent`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': this.apiKey,
+          },
+          body: JSON.stringify({
+            contents: [
+              { role: 'user', parts: [{ text: safePrompt }] },
+            ],
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            generationConfig: { temperature: 0.3 },
+          }),
+          signal: controller.signal,
         },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: safePrompt },
-          ],
-          temperature: 0.3,
-        }),
-        signal: controller.signal,
-      });
+      );
 
       clearTimeout(timeout);
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`AI API returned status ${response.status}: ${errorText}`);
+        throw new Error(`Gemini API returned status ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
-      return data.choices?.[0]?.message?.content || '';
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      if (!content) {
+        throw new Error('Gemini API returned an empty response.');
+      }
+      return { text: content, mock: false };
     } catch (err) {
       clearTimeout(timeout);
-      console.warn(`[AI Service] Live call failed (${err.message}), falling back to deterministic synthesis.`);
-      return this.fallbackCompletion(safePrompt);
+      // A real key is configured but the provider call failed: propagate the
+      // error instead of silently returning a mock synthesis.
+      throw err;
     }
   }
 
-  /**
-   * Deterministic fallback synthesis for local testing or when no API key is supplied
-   */
-  fallbackCompletion(prompt) {
-    const lower = prompt.toLowerCase();
-
-    if (lower.includes('summar') || lower.includes('summary')) {
-      return JSON.stringify({
-        heading: 'Project Knowledge Summary',
-        body: 'Project is progressing across scheduled milestones with verified architecture decisions and identified deliverables.',
-        points: [
-          'Core platform architecture verified',
-          'Sprint milestones tracked with assigned owners',
-          'Identified blockers cataloged for handover',
-        ],
-      });
-    }
-
-    if (lower.includes('decision')) {
-      return JSON.stringify({
-        heading: 'Key Technical Decisions',
-        body: 'Extracted key technical decisions and architectural trade-offs:',
-        points: [
-          'Selected modern component architecture for ergonomic development',
-          'Standardized REST endpoints with strict JSON schemas',
-          'Isolated role permissions across project leads and contributors',
-        ],
-      });
-    }
-
-    if (lower.includes('task') || lower.includes('todo')) {
-      return JSON.stringify({
-        heading: 'Outstanding Deliverables',
-        body: 'Extracted open action items and their assignees:',
-        points: [
-          'Complete end-to-end integration verification (High)',
-          'Review pending blockers and third-party dependencies (Medium)',
-          'Generate comprehensive final handover documentation (High)',
-        ],
-      });
-    }
-
-    return JSON.stringify({
-      heading: 'Baton AI Analysis',
-      body: `Processed project context successfully (${prompt.slice(0, 100)}...). Knowledge artifacts are ready for verification.`,
-      points: [
-        'Document source validated and parsed',
-        'Decisions, tasks, and timeline mapped',
-        'Traceability links established with source files',
-      ],
-    });
-  }
 }
 
 export const ai = new AIService();

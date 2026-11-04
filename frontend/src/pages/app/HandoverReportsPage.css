@@ -602,6 +602,7 @@
     opacity: 0;
     transform: translateX(-50%) translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
@@ -613,9 +614,11 @@
   .hr-grid {
     grid-template-columns: 1fr;
   }
+
   .hr-side {
     position: static;
   }
+
   .hr-stat-strip {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -625,11 +628,55 @@
   .hr-report-item {
     flex-direction: column;
   }
+
   .hr-report-actions {
     flex-direction: row;
     flex-wrap: wrap;
   }
+
   .hr-modal-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── BACKEND SYNC BAR ─────────────────────────────── */
+.hr-sync-bar {
+  margin-top: 14px;
+  margin-bottom: 2px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.hr-sync-error {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.hr-sync-info {
+  background: #f8fafc;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
+/* ── SPINNER & DISABLED STATES ────────────────────── */
+.spin {
+  animation: hr-spin 0.9s linear infinite;
+}
+
+@keyframes hr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.hr-action-btn:disabled,
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }

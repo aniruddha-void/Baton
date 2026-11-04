@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -7,41 +7,58 @@ import {
   Shield,
   Bell,
   Palette,
-  Mail,
   KeyRound,
   CheckCircle2,
   Camera,
   LogOut,
   Sparkles,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
+import { api } from '../../services/apiClient';
+import { useAuth } from '../../context/AuthContext';
 import './SettingsPage.css';
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+function buildAvatarUrl(path) {
+  if (!path) return '';
+  if (path.startsWith('http')) return path;
+  return API_BASE + path.replace(/^\/api/, '');
+}
+
 /**
- * Settings page — frontend-only state. Changes are kept in React state and
- * shown as confirmed to the user, but nothing is persisted to a backend.
+ * Settings page — wired to the backend for supported settings:
+ *   - Profile: PUT /users/profile (name/email/role/location/bio)
+ *   - Security: PUT /users/security (currentPassword/newPassword)
+ *   - Notifications: PUT /users/notifications
+ *   - Avatar: POST /users/avatar (multipart)
+ * Appearance (theme/density/reduceMotion) and username have no backend fields,
+ * so they remain frontend-only and are labeled as such.
  */
 export default function SettingsPage() {
   const navigate = useNavigate();
+  const { user, logout, updateUser } = useAuth();
 
   const [profile, setProfile] = useState({
-    name: 'Aniruddha Bhandare',
-    email: 'aniruddha@baton.app',
-    role: 'Project Lead',
-    location: 'Mumbai, India',
-    bio: 'Driving project handovers with Baton. Focused on clear communication and documentation.',
+    name: user?.name || '',
+    email: user?.email || '',
+    role: user?.role || 'Project Lead',
+    location: user?.location || '',
+    bio: user?.bio || '',
   });
 
-  const [account, setAccount] = useState({
-    username: 'aniruddha',
-    password: '••••••••••••',
+  const [security, setSecurity] = useState({
+    currentPassword: '',
+    newPassword: '',
   });
 
   const [notifications, setNotifications] = useState({
-    emailSummary: true,
-    mention: true,
-    decisionAlerts: true,
-    weeklyDigest: false,
-    mobilePush: true,
+    emailSummary: user?.notifications?.emailSummary ?? true,
+    mention: user?.notifications?.mention ?? true,
+    decisionAlerts: user?.notifications?.decisionAlerts ?? true,
+    weeklyDigest: user?.notifications?.weeklyDigest ?? false,
+    mobilePush: user?.notifications?.mobilePush ?? true,
   });
 
   const [appearance, setAppearance] = useState({
@@ -50,32 +67,149 @@ export default function SettingsPage() {
     reduceMotion: false,
   });
 
+  // Per-section async states
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [securitySaving, setSecuritySaving] = useState(false);
+  const [notifSaving, setNotifSaving] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [toast, setToast] = useState('');
+  const [toastError, setToastError] = useState(false);
   const [showToast, setShowToast] = useState(false);
+
+  const fileInputRef = useRef(null);
 
   const showConfirm = (msg) => {
     setToast(msg);
+    setToastError(false);
     setShowToast(true);
     window.setTimeout(() => setShowToast(false), 2400);
+  };
+
+  const showError = (msg) => {
+    setToast(msg);
+    setToastError(true);
+    setShowToast(true);
+    window.setTimeout(() => setShowToast(false), 3400);
   };
 
   const handleProfileChange = (field, value) => {
     setProfile((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleNotificationToggle = (key) => {
-    setNotifications((prev) => ({ ...prev, [key]: !prev[key] }));
+  const saveProfile = async () => {
+    setProfileSaving(true);
+    try {
+      const res = await api.put('/users/profile', {
+        name: profile.name,
+        email: profile.email,
+        role: profile.role,
+        location: profile.location,
+        bio: profile.bio,
+      });
+      if (res.success && res.data?.user) {
+        updateUser(res.data.user);
+        showConfirm('Profile updated successfully.');
+      } else {
+        throw new Error(res.message || 'Failed to update profile');
+      }
+    } catch (err) {
+      showError(err.message || 'Could not update profile.');
+    } finally {
+      setProfileSaving(false);
+    }
   };
 
-  const handleAppearanceToggle = (key) => {
-    setAppearance((prev) => ({ ...prev, [key]: !prev[key] }));
+  const discardProfile = () => {
+    setProfile({
+      name: user?.name || '',
+      email: user?.email || '',
+      role: user?.role || 'Project Lead',
+      location: user?.location || '',
+      bio: user?.bio || '',
+    });
   };
+
+  const saveSecurity = async () => {
+    if (!security.currentPassword) {
+      showError('Please enter your current password.');
+      return;
+    }
+    if (security.newPassword.length < 8) {
+      showError('New password must be at least 8 characters.');
+      return;
+    }
+    setSecuritySaving(true);
+    try {
+      const res = await api.put('/users/security', {
+        currentPassword: security.currentPassword,
+        newPassword: security.newPassword,
+      });
+      if (res.success) {
+        setSecurity({ currentPassword: '', newPassword: '' });
+        showConfirm(res.message || 'Security credentials updated.');
+      } else {
+        throw new Error(res.message || 'Failed to update security settings');
+      }
+    } catch (err) {
+      showError(err.message || 'Could not update password.');
+    } finally {
+      setSecuritySaving(false);
+    }
+  };
+
+  const handleNotificationToggle = async (key) => {
+    const next = { ...notifications, [key]: !notifications[key] };
+    setNotifications(next);
+    setNotifSaving(true);
+    try {
+      const res = await api.put('/users/notifications', next);
+      if (res.success && res.data?.notifications) {
+        setNotifications(res.data.notifications);
+      } else {
+        throw new Error(res.message || 'Failed to save notification preferences');
+      }
+    } catch (err) {
+      showError(err.message || 'Could not save notification preferences.');
+    } finally {
+      setNotifSaving(false);
+    }
+  };
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('avatar', file);
+    setAvatarUploading(true);
+    try {
+      const res = await api.post('/users/avatar', fd);
+      if (res.success && res.data?.avatarUrl) {
+        updateUser({ avatarUrl: res.data.avatarUrl });
+        showConfirm('Avatar uploaded successfully.');
+      } else {
+        throw new Error(res.message || 'Upload failed');
+      }
+    } catch (err) {
+      showError(err.message || 'Could not upload avatar.');
+    } finally {
+      setAvatarUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
+  const avatarSrc = buildAvatarUrl(user?.avatarUrl);
+  const initials = user?.initials || (profile.name.trim().split(/\s+/).slice(0, 2).map((p) => p[0] || '').join('').toUpperCase() || 'AB');
 
   return (
     <div className="settings-page">
       {/* Toast */}
-      <div className={`settings-toast ${showToast ? 'show' : ''}`}>
-        <CheckCircle2 size={17} />
+      <div className={`settings-toast ${showToast ? 'show' : ''} ${toastError ? 'error' : ''}`}>
+        {toastError ? <AlertCircle size={17} /> : <CheckCircle2 size={17} />}
         {toast}
       </div>
 
@@ -114,23 +248,29 @@ export default function SettingsPage() {
 
             <div className="settings-avatar-row">
               <div className="settings-avatar">
-                AB
+                {avatarSrc ? <img className="settings-avatar-img" src={avatarSrc} alt="Avatar" /> : initials}
                 <span className="settings-avatar-cam">
                   <Camera size={13} />
                 </span>
               </div>
               <div className="settings-avatar-actions">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  style={{ display: 'none' }}
+                  onChange={handleAvatarUpload}
+                />
                 <button
                   className="btn-secondary btn-sm"
-                  onClick={() =>
-                    showConfirm('Avatar upload is not enabled in this demo.')
-                  }
+                  disabled={avatarUploading}
+                  onClick={() => fileInputRef.current?.click()}
                 >
-                  Upload new photo
+                  {avatarUploading ? <Loader2 size={14} className="spin" /> : 'Upload new photo'}
                 </button>
                 <button
                   className="btn-ghost btn-sm"
-                  onClick={() => showConfirm('Avatar removed (demo).')}
+                  onClick={() => showConfirm('Avatar removed (frontend only).')}
                 >
                   Remove
                 </button>
@@ -156,11 +296,18 @@ export default function SettingsPage() {
               </div>
               <div className="settings-field">
                 <label>Role / title</label>
-                <input
-                  type="text"
+                <select
                   value={profile.role}
                   onChange={(e) => handleProfileChange('role', e.target.value)}
-                />
+                >
+                  <option>Project Lead</option>
+                  <option>Frontend Engineer</option>
+                  <option>Backend Engineer</option>
+                  <option>Product Designer</option>
+                  <option>QA Engineer</option>
+                  <option>Product Manager</option>
+                  <option>Other</option>
+                </select>
               </div>
               <div className="settings-field">
                 <label>Location</label>
@@ -181,20 +328,12 @@ export default function SettingsPage() {
             </div>
 
             <div className="settings-actions">
-              <button className="btn-secondary" onClick={() => setProfile({
-                name: 'Aniruddha Bhandare',
-                email: 'aniruddha@baton.app',
-                role: 'Project Lead',
-                location: 'Mumbai, India',
-                bio: 'Driving project handovers with Baton. Focused on clear communication and documentation.',
-              })}>
+              <button className="btn-secondary" onClick={discardProfile} disabled={profileSaving}>
                 Discard
               </button>
-              <button
-                className="btn-primary"
-                onClick={() => showConfirm('Profile updated (frontend demo).')}
-              >
-                <CheckCircle2 size={16} /> Save changes
+              <button className="btn-primary" onClick={saveProfile} disabled={profileSaving}>
+                {profileSaving ? <Loader2 size={16} className="spin" /> : <CheckCircle2 size={16} />}
+                {profileSaving ? 'Saving…' : 'Save changes'}
               </button>
             </div>
           </section>
@@ -207,56 +346,48 @@ export default function SettingsPage() {
               </div>
               <div className="settings-card-heading">
                 <h3>Account &amp; Security</h3>
-                <p>Manage your sign-in credentials.</p>
+                <p>Change your password. Username is tied to your account and cannot be edited here.</p>
               </div>
             </div>
 
             <div className="settings-form-grid">
               <div className="settings-field">
-                <label>Username</label>
-                <input
-                  type="text"
-                  value={account.username}
-                  onChange={(e) =>
-                    setAccount((prev) => ({ ...prev, username: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="settings-field">
-                <label>Password</label>
+                <label>Current password</label>
                 <div className="settings-password">
                   <KeyRound size={15} />
                   <input
                     type="password"
-                    value={account.password}
+                    value={security.currentPassword}
+                    placeholder="Current password"
                     onChange={(e) =>
-                      setAccount((prev) => ({ ...prev, password: e.target.value }))
+                      setSecurity((prev) => ({ ...prev, currentPassword: e.target.value }))
                     }
                   />
-                  <button
-                    className="btn-ghost btn-sm"
-                    onClick={() =>
-                      showConfirm('Password reset link sent (demo).')
+                </div>
+              </div>
+              <div className="settings-field">
+                <label>New password</label>
+                <div className="settings-password">
+                  <KeyRound size={15} />
+                  <input
+                    type="password"
+                    value={security.newPassword}
+                    placeholder="Min. 8 characters"
+                    onChange={(e) =>
+                      setSecurity((prev) => ({ ...prev, newPassword: e.target.value }))
                     }
-                  >
-                    Reset
-                  </button>
+                  />
                 </div>
               </div>
             </div>
 
             <div className="settings-actions">
-              <button
-                className="btn-secondary"
-                onClick={() => showConfirm('Signed out (demo).')}
-              >
+              <button className="btn-secondary" onClick={handleLogout}>
                 <LogOut size={15} /> Sign out
               </button>
-              <button
-                className="btn-primary"
-                onClick={() => showConfirm('Account settings saved (frontend demo).')}
-              >
-                <CheckCircle2 size={16} /> Save
+              <button className="btn-primary" onClick={saveSecurity} disabled={securitySaving}>
+                {securitySaving ? <Loader2 size={16} className="spin" /> : <CheckCircle2 size={16} />}
+                {securitySaving ? 'Saving…' : 'Update password'}
               </button>
             </div>
           </section>
@@ -295,6 +426,11 @@ export default function SettingsPage() {
                 </button>
               </div>
             ))}
+            {notifSaving && (
+              <div className="settings-saving-note">
+                <Loader2 size={13} className="spin" /> Saving…
+              </div>
+            )}
           </section>
         </div>
 
@@ -348,7 +484,9 @@ export default function SettingsPage() {
                 className={`settings-switch ${appearance.reduceMotion ? 'on' : ''}`}
                 role="switch"
                 aria-checked={appearance.reduceMotion}
-                onClick={() => handleAppearanceToggle('reduceMotion')}
+                onClick={() =>
+                  setAppearance((prev) => ({ ...prev, reduceMotion: !prev.reduceMotion }))
+                }
               >
                 <span className="settings-switch-knob" />
               </button>
@@ -357,7 +495,7 @@ export default function SettingsPage() {
             <div className="settings-actions">
               <button
                 className="btn-primary"
-                onClick={() => showConfirm('Appearance preferences saved (frontend demo).')}
+                onClick={() => showConfirm('Appearance applied to this session only (not persisted — no backend field).')}
               >
                 <CheckCircle2 size={16} /> Apply
               </button>
@@ -372,7 +510,7 @@ export default function SettingsPage() {
             <h3 className="settings-dark-title">Need a hand?</h3>
             <p className="settings-dark-desc">
               The Baton AI assistant can help you draft handovers and summarise
-              project activity. Changes here are demo-only and not persisted.
+              project activity.
             </p>
             <button
               className="settings-dark-btn"

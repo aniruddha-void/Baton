@@ -120,7 +120,7 @@ npm start
 | `MONGODB_URI` | Yes | MongoDB connection string | `mongodb://127.0.0.1:27017/baton` |
 | `JWT_ACCESS_SECRET` | Yes | Secret key for signing 15-minute access tokens (min 32 chars) | `your_access_secret_key_here` |
 | `JWT_REFRESH_SECRET`| Yes | Secret key for signing 7-day refresh tokens (min 32 chars) | `your_refresh_secret_key_here` |
-| `AI_API_KEY` | No | API key for OpenAI or Gemini AI completions | `your_ai_api_key_here` |
+| `AI_API_KEY` | No | Google Gemini API key (Google AI Studio) for AI completions | `your_ai_api_key_here` |
 | `UPLOAD_DIR` | No | Target directory for file uploads (default: `uploads`) | `uploads` |
 
 ---

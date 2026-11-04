@@ -16,6 +16,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import './CreateProjectPage.css';
+import { api } from '../../services/apiClient';
 
 const STORAGE_KEY = 'baton_created_projects';
 
@@ -152,7 +153,7 @@ export default function CreateProjectPage() {
     return next;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const next = validate();
     if (Object.keys(next).length) {
@@ -181,8 +182,23 @@ export default function CreateProjectPage() {
       startDate: form.startDate,
       endDate: form.endDate,
     };
-    saveCreatedProject(project);
-    navigate('/projects');
+
+    // Persist to MongoDB via the backend. If the backend is unreachable, keep
+    // the local-only copy so the demo still works without a server.
+    try {
+      await api.post('/projects', {
+        name: project.name,
+        description: project.description,
+        status: project.status,
+        repositoryUrl: '',
+        technologies: [],
+      });
+    } catch {
+      saveCreatedProject(project);
+    } finally {
+      setSubmitting(false);
+      navigate('/projects');
+    }
   };
 
   return (

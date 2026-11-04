@@ -304,8 +304,18 @@
 }
 
 @keyframes ai-blink {
-  0%, 80%, 100% { opacity: 0.3; transform: translateY(0); }
-  40% { opacity: 1; transform: translateY(-3px); }
+
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
 }
 
 .ai-error {
@@ -517,4 +527,250 @@
   .ai-row {
     max-width: 100%;
   }
+}
+
+/* ── Markdown / code rendering (AI assistant) ─────── */
+.ai-md {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Headings */
+.ai-md h1,
+.ai-md h2,
+.ai-md h3,
+.ai-md h4,
+.ai-md h5,
+.ai-md h6 {
+  color: var(--text-primary);
+  font-weight: 800;
+  line-height: 1.3;
+  margin: 14px 0 6px;
+  letter-spacing: -0.01em;
+}
+
+.ai-md h1 {
+  font-size: 18px;
+}
+
+.ai-md h2 {
+  font-size: 16.5px;
+}
+
+.ai-md h3 {
+  font-size: 15.5px;
+}
+
+.ai-md h4 {
+  font-size: 14.5px;
+}
+
+.ai-md h5 {
+  font-size: 14px;
+}
+
+.ai-md h6 {
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
+.ai-md h1:first-child,
+.ai-md h2:first-child,
+.ai-md h3:first-child,
+.ai-md h4:first-child,
+.ai-md h5:first-child,
+.ai-md h6:first-child {
+  margin-top: 0;
+}
+
+/* Paragraphs */
+.ai-md p {
+  margin: 0 0 10px;
+}
+
+.ai-md p:last-child {
+  margin-bottom: 0;
+}
+
+/* Bold / italic / strikethrough */
+.ai-md strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.ai-md em {
+  font-style: italic;
+}
+
+/* Lists */
+.ai-md ul,
+.ai-md ol {
+  margin: 6px 0 12px;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-md ul {
+  list-style: disc;
+}
+
+.ai-md ol {
+  list-style: decimal;
+}
+
+.ai-md li {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.ai-md li::marker {
+  color: var(--brand-primary);
+}
+
+/* Links */
+.ai-md-link {
+  color: var(--brand-primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: opacity 0.15s ease;
+}
+
+.ai-md-link:hover {
+  opacity: 0.8;
+}
+
+/* Blockquote */
+.ai-md blockquote {
+  margin: 8px 0;
+  padding: 8px 14px;
+  border-left: 3px solid var(--brand-primary);
+  background: var(--bg-card-subtle);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  color: var(--text-secondary);
+}
+
+.ai-md blockquote p {
+  margin: 0;
+}
+
+/* Inline code */
+.ai-md-inlinecode {
+  background: rgba(124, 58, 237, 0.1);
+  color: var(--brand-primary);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12.5px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  border: 1px solid rgba(124, 58, 237, 0.15);
+}
+
+/* Fenced code blocks */
+.ai-md-codeblock {
+  margin: 10px 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  background: #0d1117;
+}
+
+.ai-md-codehead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: #161b22;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ai-md-lang {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #8b949e;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+.ai-md-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #c9d1d9;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ai-md-copy:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.ai-md-pre {
+  margin: 0;
+  padding: 14px 16px;
+  overflow-x: auto;
+  max-width: 100%;
+  background: transparent;
+}
+
+.ai-md-pre code {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 13px;
+  line-height: 1.6;
+  color: #e6edf3;
+  background: transparent;
+  display: block;
+  white-space: pre;
+}
+
+/* Tables (GFM) */
+.ai-md table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 13.5px;
+  display: block;
+  overflow-x: auto;
+}
+
+.ai-md th,
+.ai-md td {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  text-align: left;
+}
+
+.ai-md th {
+  background: var(--bg-card-subtle);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.ai-md td {
+  color: var(--text-secondary);
+}
+
+/* Task lists */
+.ai-md input[type='checkbox'] {
+  accent-color: var(--brand-primary);
+  margin-right: 6px;
+}
+
+/* Horizontal rule */
+.ai-md hr {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 14px 0;
 }

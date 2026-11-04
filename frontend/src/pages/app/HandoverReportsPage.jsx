@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../../services/apiClient';
 import {
   ArrowLeft,
   FileText,
@@ -17,6 +18,7 @@ import {
   X,
   Printer,
   Mail,
+  Loader2,
 } from 'lucide-react';
 import './HandoverReportsPage.css';
 
@@ -101,32 +103,201 @@ export default function HandoverReportsPage() {
   const [preview, setPreview] = useState(null); // report id or null
   const [showExport, setShowExport] = useState(null); // report id or null
   const [toast, setToast] = useState('');
+  const [realProjects, setRealProjects] = useState([]);
+  const [loadingReal, setLoadingReal] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [busyId, setBusyId] = useState(null);
+  const [exportId, setExportId] = useState(null);
 
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(''), 2600);
   };
 
+  // Fetch real projects from the backend to build genuine reports.
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingReal(true);
+    setLoadError('');
+    api
+      .get('/projects')
+      .then((res) => {
+        if (cancelled) return;
+        const projects = Array.isArray(res?.data?.projects) ? res.data.projects : [];
+        setRealProjects(projects);
+        if (projects.length > 0) {
+          const real = projects.map((p) => ({
+            id: p._id,
+            title: `${p.name} Handover Report`,
+            project: p.name,
+            status: p.status === 'Completed' ? 'Ready' : p.status === 'On Hold' ? 'Draft' : 'In Progress',
+            updated: new Date(p.updatedAt || p.createdAt || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+            author: 'Aniruddha Bhandare',
+            decisions: 0,
+            tasks: 0,
+            coverage: typeof p.progress === 'number' ? Math.round(p.progress) : 0,
+            excerpt: p.description || `Handover report generated from live project data for ${p.name}.`,
+            source: 'backend',
+            repo: p.repositoryUrl || '',
+            technologies: Array.isArray(p.technologies) ? p.technologies : [],
+          }));
+          setReports((prev) => [...real, ...prev]);
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadError(err.message || 'Could not load backend projects.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingReal(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Build real file content from a report + its source project data.
+  const buildReportFile = (rep, format) => {
+    const project = rep.source === 'backend' ? realProjects.find((p) => p._id === rep.id) : null;
+    const repo = project?.repositoryUrl || rep.repo || '';
+    const tech = project?.technologies || rep.technologies || [];
+    const date = new Date().toLocaleString();
+
+    if (format === 'json') {
+      const data = {
+        reportTitle: rep.title,
+        project: rep.project,
+        status: rep.status,
+        coveragePercent: rep.coverage,
+        author: rep.author,
+        updated: rep.updated,
+        generatedAt: date,
+        excerpt: rep.excerpt,
+        repositoryUrl: repo,
+        technologies: tech,
+        source: rep.source === 'backend' ? 'MongoDB (live)' : 'Demo',
+        note: 'Tasks and decisions counts require backend integration and are not included in this export.',
+      };
+      return JSON.stringify(data, null, 2);
+    }
+
+    // Markdown
+    const lines = [];
+    lines.push(`# ${rep.title}`);
+    lines.push('');
+    lines.push(`> **Project:** ${rep.project}  `);
+    lines.push(`> **Status:** ${rep.status}  `);
+    lines.push(`> **Coverage:** ${rep.coverage}%  `);
+    lines.push(`> **Author:** ${rep.author}  `);
+    lines.push(`> **Updated:** ${rep.updated}  `);
+    lines.push(`> **Generated:** ${date}`);
+    lines.push('');
+    lines.push('## Overview');
+    lines.push('');
+    lines.push(rep.excerpt);
+    lines.push('');
+    if (repo) {
+      lines.push('## Repository');
+      lines.push('');
+      lines.push(repo);
+      lines.push('');
+    }
+    if (tech.length > 0) {
+      lines.push('## Technologies');
+      lines.push('');
+      tech.forEach((t) => lines.push(`- ${t}`));
+      lines.push('');
+    }
+    lines.push('## Notes');
+    lines.push('');
+    lines.push('Task and decision breakdowns will be included once backend integration provides that data.');
+    lines.push('');
+    return lines.join('\n');
+  };
+
+  // Trigger a real browser download for the generated file.
+  const downloadFile = (rep, format) => {
+    const content = buildReportFile(rep, format);
+    const ext = format === 'json' ? 'json' : 'md';
+    const mime = format === 'json' ? 'application/json' : 'text/markdown';
+    const blob = new Blob([content], { type: `${mime};charset=utf-8` });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const safeName = rep.project.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'report';
+    a.href = url;
+    a.download = `${safeName}-handover.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return `${safeName}-handover.${ext}`;
+  };
+
   const readyCount = reports.filter((r) => r.status === 'Ready').length;
 
   const handlePreview = (id) => setPreview(id);
+
   const handleDownload = (id) => {
-    showToast(`Preparing ${reports.find((r) => r.id === id)?.title} for download…`);
+    const rep = reports.find((r) => r.id === id);
+    if (!rep) return;
+    setBusyId(id);
+    try {
+      const filename = downloadFile(rep, 'md');
+      showToast(`Downloaded ${filename}`);
+    } catch (err) {
+      showToast(`Download failed: ${err.message}`);
+    } finally {
+      setBusyId(null);
+    }
   };
+
   const handleExportMarkdown = (id) => {
-    showToast(`Exported ${reports.find((r) => r.id === id)?.project} report (.md)`);
-    setShowExport(null);
+    const rep = reports.find((r) => r.id === id);
+    if (!rep) return;
+    setBusyId(id);
+    try {
+      const filename = downloadFile(rep, 'md');
+      showToast(`Exported ${rep.project} report (.md) → ${filename}`);
+      setShowExport(null);
+    } catch (err) {
+      showToast(`Export failed: ${err.message}`);
+    } finally {
+      setBusyId(null);
+    }
   };
   const handleExportJson = (id) => {
-    showToast(`Exported ${reports.find((r) => r.id === id)?.project} report (.json)`);
-    setShowExport(null);
+    const rep = reports.find((r) => r.id === id);
+    if (!rep) return;
+    setBusyId(id);
+    try {
+      const filename = downloadFile(rep, 'json');
+      showToast(`Exported ${rep.project} report (.json) → ${filename}`);
+      setShowExport(null);
+    } catch (err) {
+      showToast(`Export failed: ${err.message}`);
+    } finally {
+      setBusyId(null);
+    }
   };
+
+  const handleExportPrint = (id) => {
+    const rep = reports.find((r) => r.id === id);
+    if (!rep) return;
+    setShowExport(null);
+    const content = buildReportFile(rep, 'md');
+    const w = window.open('', '_blank');
+    if (!w) {
+      showToast('Print blocked. Allow pop-ups for this site.');
+      return;
+    }
+    w.document.write(`<html><head><title>${rep.title}</title></head><body><pre style="font-family: monospace; white-space: pre-wrap;">${content}</pre></body></html>`);
+    w.document.close();
+    w.print();
+  };
+
   const handleShare = (id) => {
     const r = reports.find((x) => x.id === id);
-    showToast(`Shareable link copied for "${r.project}"`);
-  };
-  const handleRegenerate = (id) => {
-    showToast('Report regeneration started (frontend demo)');
+    showToast(`Shareable link copied for "${r.project}" (frontend demo)`);
   };
 
   const previewReport = reports.find((r) => r.id === preview) || null;
@@ -151,6 +322,21 @@ export default function HandoverReportsPage() {
           </div>
         </div>
       </div>
+
+      {/* ── BACKEND SYNC STATUS ─────────────────── */}
+      {loadingReal && (
+        <div className="hr-sync-bar">Loading live projects from the backend…</div>
+      )}
+      {!loadingReal && loadError && (
+        <div className="hr-sync-bar hr-sync-error">
+          Could not load backend projects: {loadError}. Showing demo data only.
+        </div>
+      )}
+      {!loadingReal && !loadError && realProjects.length === 0 && (
+        <div className="hr-sync-bar hr-sync-info">
+          No backend projects found. Demo reports are shown; create a project to generate live reports.
+        </div>
+      )}
 
       {/* ── STAT STRIP ────────────────────────────────── */}
       <div className="hr-stat-strip">
@@ -258,9 +444,15 @@ export default function HandoverReportsPage() {
                         <Eye size={16} />
                         <span>Preview</span>
                       </button>
-                      <button type="button" className="hr-action-btn" onClick={() => handleDownload(r.id)} title="Download report">
-                        <Download size={16} />
-                        <span>Download</span>
+                      <button
+                        type="button"
+                        className="hr-action-btn"
+                        onClick={() => handleDownload(r.id)}
+                        title="Download report"
+                        disabled={busyId === r.id}
+                      >
+                        {busyId === r.id ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
+                        <span>{busyId === r.id ? 'Preparing…' : 'Download'}</span>
                       </button>
                       <button type="button" className="hr-action-btn" onClick={() => setShowExport(r.id)} title="Export as file">
                         <Copy size={16} />
@@ -316,6 +508,28 @@ export default function HandoverReportsPage() {
               type="button"
               className="btn-primary hr-ai-btn"
               onClick={() => {
+                if (realProjects.length > 0) {
+                  // Generate a real report from the most recently updated backend project.
+                  const p = realProjects[0];
+                  const added = {
+                    id: p._id,
+                    title: `${p.name} Handover Report`,
+                    project: p.name,
+                    status: p.status === 'Completed' ? 'Ready' : p.status === 'On Hold' ? 'Draft' : 'In Progress',
+                    updated: new Date(p.updatedAt || p.createdAt || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+                    author: 'Aniruddha Bhandare',
+                    decisions: 0,
+                    tasks: 0,
+                    coverage: typeof p.progress === 'number' ? Math.round(p.progress) : 0,
+                    excerpt: p.description || `Handover report generated from live project data for ${p.name}.`,
+                    source: 'backend',
+                    repo: p.repositoryUrl || '',
+                    technologies: Array.isArray(p.technologies) ? p.technologies : [],
+                  };
+                  setReports((prev) => [added, ...prev]);
+                  showToast(`Generated ${p.name} report from live data`);
+                  return;
+                }
                 const n = reports.length + 1;
                 const added = {
                   id: `rp-new-${n}`,
@@ -334,7 +548,7 @@ export default function HandoverReportsPage() {
               }}
             >
               <Sparkles size={15} />
-              <span>Generate Report</span>
+              <span>{realProjects.length > 0 ? 'Generate Report (live)' : 'Generate Report'}</span>
             </button>
           </section>
         </aside>
@@ -396,9 +610,9 @@ export default function HandoverReportsPage() {
               <button type="button" className="btn-secondary" onClick={() => setPreview(null)}>
                 Close
               </button>
-              <button type="button" className="btn-primary" onClick={() => handleDownload(previewReport.id)}>
-                <Download size={15} />
-                <span>Download</span>
+              <button type="button" className="btn-primary" onClick={() => handleDownload(previewReport.id)} disabled={busyId === previewReport.id}>
+                {busyId === previewReport.id ? <Loader2 size={15} className="spin" /> : <Download size={15} />}
+                <span>{busyId === previewReport.id ? 'Preparing…' : 'Download'}</span>
               </button>
               <button type="button" className="btn-primary" onClick={() => handleShare(previewReport.id)}>
                 <Share2 size={15} />
@@ -421,7 +635,7 @@ export default function HandoverReportsPage() {
             <Copy size={15} />
             <span>JSON (.json)</span>
           </button>
-          <button type="button" className="hr-export-option" onClick={() => handleExportMarkdown(showExport)}>
+          <button type="button" className="hr-export-option" onClick={() => handleExportPrint(showExport)}>
             <Printer size={15} />
             <span>Print / PDF</span>
           </button>

@@ -15,6 +15,8 @@ import {
   Users,
 } from 'lucide-react';
 import './AiAssistantPage.css';
+import { api } from '../../services/apiClient';
+import AIMarkdown from '../../components/AIMarkdown';
 
 /** Demo team members (matching the rest of the app). */
 const OWNERS = {
@@ -31,78 +33,6 @@ const SUGGESTIONS = [
   'List outstanding tasks and owners',
   'Draft a handover executive summary',
 ];
-
-/**
- * Clearly identified mock responses — no backend or external AI calls.
- * We echo the user's prompt back in the assistant style so the UI is fully
- * functional as a frontend demo.
- */
-function buildMockReply(prompt) {
-  const p = prompt.trim();
-  const lower = p.toLowerCase();
-
-  if (lower.includes('summar') || lower.includes('summary')) {
-    return {
-      heading: 'CampusConnect — Quick Summary',
-      body:
-        'CampusConnect is on track. The mobile app prototype reached Beta 1.0, ' +
-        'the onboarding flow is in review, and the backend API design is finalised. ' +
-        'Overall project health: On Track with 12 of 18 milestones complete.',
-      points: [
-        'Phase: Beta | Health: On Track',
-        'Milestones completed: 12 / 18',
-        'Next milestone: Beta 1.1 release',
-      ],
-    };
-  }
-
-  if (lower.includes('decision')) {
-    return {
-      heading: 'Recent Decisions',
-      body:
-        'I found the most recent recorded decisions for the project:',
-      points: [
-        'Approved the switch to React for the admin console (by Raju Yadav).',
-        'Finalised PostgreSQL as the primary data store (by Aniruddha Bhandare).',
-        'Agreed on a two-week sprint cadence from next month.',
-      ],
-    };
-  }
-
-  if (lower.includes('task') || lower.includes('todo') || lower.includes('outstanding')) {
-    return {
-      heading: 'Outstanding Tasks',
-      body: 'Here are the currently open tasks with owners:',
-      points: [
-        'Finalise onboarding flow — Vishal Chauhan (In Review).',
-        'Set up CI pipeline — Hrithikraj Singh (In Progress).',
-        'Write API integration tests — Raju Yadav (To Do).',
-      ],
-    };
-  }
-
-  if (lower.includes('handover') || lower.includes('executive')) {
-    return {
-      heading: 'Handover Executive Summary (Draft)',
-      body:
-        'Baton AI prepared a draft executive summary for your handover report:',
-      points: [
-        'CampusConnect delivered Beta 1.0 with strong cross-team coordination.',
-        'Key risks are limited to third-party API rate limits.',
-        'Ready to hand over to the next engineering team with full documentation.',
-      ],
-    };
-  }
-
-  return {
-    heading: 'Here’s what I found',
-    body:
-      `Thanks! I’ve analysed “${p}”. In this demo, Baton AI returns a ` +
-      'clearly marked mock response — no live AI or backend call is made. ' +
-      'Once the AI service is connected, this will answer with real project data.',
-    points: ['This is a mock response for demonstration.'],
-  };
-}
 
 export default function AiAssistantPage() {
   const navigate = useNavigate();
@@ -128,12 +58,33 @@ export default function AiAssistantPage() {
     setError('');
     setIsTyping(true);
 
-    // Simulate a short typing delay, then reply with a clearly-marked mock.
-    setTimeout(() => {
-      const reply = buildMockReply(text);
+    // Call the backend AI route (/api/assistant), which keeps the provider API
+    // key on the server. Errors are surfaced to the user — there is no silent
+    // local mock fallback for authenticated use.
+    const finish = (reply) => {
       setMessages((prev) => [...prev, { role: 'assistant', ...reply }]);
       setIsTyping(false);
-    }, 900);
+    };
+
+    (async () => {
+      try {
+        const response = await api.post('/assistant', { message: text });
+        // Backend envelope: { success, data: { reply }, message }
+        const reply = response?.data?.data?.reply ?? response?.data?.reply;
+        if (reply && typeof reply === 'object') {
+          finish(reply);
+        } else if (typeof reply === 'string') {
+          try { finish(JSON.parse(reply)); } catch { finish({ heading: 'Assistant reply', body: reply }); }
+        } else {
+          setError('The assistant returned no reply. Please try again.');
+          setIsTyping(false);
+        }
+      } catch (err) {
+        // No silent mock fallback: surface the actual error.
+        setError(err?.message || 'Failed to reach the AI assistant.');
+        setIsTyping(false);
+      }
+    })();
   };
 
   const handleKeyDown = (e) => {
@@ -217,11 +168,15 @@ export default function AiAssistantPage() {
                     <Bot size={18} />
                   </div>
                   <div className="ai-bubble ai-bubble-bot">
-                    <div className="ai-mock-tag">
-                      <Info size={12} /> Mock response
-                    </div>
-                    <div className="ai-bubble-heading">{m.heading}</div>
-                    <p className="ai-bubble-body">{m.body}</p>
+                    {m.mock && (
+                      <div className="ai-mock-tag">
+                        <Info size={12} /> Mock response
+                      </div>
+                    )}
+                    {m.heading && (
+                      <div className="ai-bubble-heading">{m.heading}</div>
+                    )}
+                    {m.body && <AIMarkdown content={m.body} />}
                     {m.points && m.points.length > 0 && (
                       <ul className="ai-bubble-list">
                         {m.points.map((pt, j) => (
@@ -306,8 +261,8 @@ export default function AiAssistantPage() {
               </li>
             </ul>
             <p className="ai-note">
-              Demo mode: responses are mock data. No live AI call is made and no
-              data leaves your browser.
+              Responses are generated by Google Gemini via the backend — the API
+              key stays on the server and is never exposed in the browser.
             </p>
           </div>
 

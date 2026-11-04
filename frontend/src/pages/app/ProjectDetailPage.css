@@ -726,3 +726,160 @@
     max-width: none;
   }
 }
+
+/* ── EDIT MODAL ────────────────────────────────────── */
+.pd-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 12, 26, 0.55);
+  backdrop-filter: blur(4px);
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.pd-modal {
+  width: 100%;
+  max-width: 460px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e6e8f0);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(10, 14, 30, 0.25);
+  padding: 22px;
+  max-height: 92vh;
+  overflow-y: auto;
+  animation: pdModalIn 0.16s ease;
+}
+
+@keyframes pdModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.pd-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.pd-modal-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pd-modal-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text, #0f172a);
+}
+
+.pd-modal-subtitle {
+  font-size: 13px;
+  color: var(--muted, #64748b);
+}
+
+.pd-modal-close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--muted, #64748b);
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+}
+
+.pd-modal-close:hover {
+  background: var(--surface-2, #f1f5f9);
+}
+
+.pd-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pd-edit-error {
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 13px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+}
+
+.pd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pd-field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.pd-field-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text, #0f172a);
+}
+
+.pd-field-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border, #e6e8f0);
+  border-radius: 8px;
+  font-size: 14px;
+  background: #fff;
+  color: var(--text, #0f172a);
+  font-family: inherit;
+}
+
+.pd-field-input:focus {
+  outline: none;
+  border-color: var(--brand, #7c3aed);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+}
+
+.pd-field-textarea {
+  resize: vertical;
+}
+
+.pd-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.pd-spin {
+  animation: pdSpin 0.8s linear infinite;
+}
+
+@keyframes pdSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 560px) {
+  .pd-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pd-modal {
+    padding: 18px;
+  }
+}

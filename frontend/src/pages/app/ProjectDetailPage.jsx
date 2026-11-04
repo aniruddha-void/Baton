@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -19,9 +19,12 @@ import {
   Lightbulb,
   CircleDot,
   ShieldCheck,
+  X,
+  Loader2,
 } from 'lucide-react';
 import './ProjectDetailPage.css';
 import { getProjectById } from './ProjectsPage';
+import { api } from '../../services/apiClient';
 
 /* ─────────────────────────────────────────────
    REALISTIC PLACEHOLDER DATA
@@ -81,10 +84,143 @@ function StatusBadge({ type, children }) {
   return <span className={`pd-status-badge ${type}`}>{children}</span>;
 }
 
+function getStatusType(status) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'on track') return 'on-track';
+  if (s === 'review') return 'review';
+  if (s === 'completed') return 'completed';
+  if (s === 'on hold') return 'on-hold';
+  return 'in-progress';
+}
+
+function formatDate(date) {
+  if (!date) return '—';
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function normalizeDetail(p) {
+  return {
+    ...p,
+    id: p._id || p.id,
+    statusType: getStatusType(p.status),
+    progress: Number(p.progress) || 0,
+    team: Array.isArray(p.team) ? p.team : [],
+    lastUpdated: formatDate(p.updatedAt || p.createdAt),
+  };
+}
+
 export default function ProjectDetailPage() {
   const { projectId } = useParams();
   const navigate = useNavigate();
-  const project = useMemo(() => getProjectById(projectId), [projectId]);
+
+  const [project, setProject] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // ── Edit modal state ──────────────────────────────
+  const [showEdit, setShowEdit] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [editForm, setEditForm] = useState({
+    name: '',
+    description: '',
+    status: 'In Progress',
+    progress: 0,
+    repositoryUrl: '',
+    technologies: '',
+  });
+
+  function openEdit() {
+    setEditForm({
+      name: project?.name || '',
+      description: project?.description || '',
+      status: project?.status || 'In Progress',
+      progress: Number(project?.progress) || 0,
+      repositoryUrl: project?.repositoryUrl || '',
+      technologies: Array.isArray(project?.technologies)
+        ? project.technologies.join(', ')
+        : '',
+    });
+    setEditError('');
+    setShowEdit(true);
+  }
+
+  async function handleEditSubmit(e) {
+    e.preventDefault();
+    if (!editForm.name.trim()) {
+      setEditError('Project name is required.');
+      return;
+    }
+    setEditSaving(true);
+    setEditError('');
+    try {
+      const payload = {
+        name: editForm.name.trim(),
+        description: editForm.description.trim(),
+        status: editForm.status,
+        progress: Number(editForm.progress) || 0,
+      };
+      if (editForm.repositoryUrl.trim()) {
+        payload.repositoryUrl = editForm.repositoryUrl.trim();
+      }
+      if (editForm.technologies.trim()) {
+        payload.technologies = editForm.technologies
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+      }
+      const response = await api.put(`/projects/${project.id}`, payload);
+      if (response.success && response.data?.project) {
+        setProject(normalizeDetail(response.data.project));
+        setShowEdit(false);
+      } else {
+        setEditError('Update failed — unexpected response from server.');
+      }
+    } catch (err) {
+      setEditError(err.message || 'Failed to save changes.');
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function load() {
+      setLoading(true);
+      const demo = getProjectById(projectId);
+      if (demo) {
+        if (mounted) { setProject(demo); setLoading(false); }
+        return;
+      }
+      try {
+        const response = await api.get(`/projects/${projectId}`);
+        if (mounted && response.success && response.data?.project) {
+          setProject(normalizeDetail(response.data.project));
+        } else if (mounted) {
+          setProject(null);
+        }
+      } catch {
+        if (mounted) setProject(null);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    load();
+    return () => { mounted = false; };
+  }, [projectId]);
+
+  if (loading) {
+    return (
+      <div className="pd-page">
+        <div className="pd-not-found">
+          <p>Loading project…</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!project) {
     return (
@@ -128,7 +264,7 @@ export default function ProjectDetailPage() {
         </div>
         <div className="pd-header-actions">
           <StatusBadge type={statusType}>{project.status}</StatusBadge>
-          <button type="button" className="btn-secondary pd-btn-ghost">
+          <button type="button" className="btn-secondary pd-btn-ghost" onClick={openEdit}>
             <PenLine size={15} />
             <span>Edit</span>
           </button>
@@ -410,6 +546,135 @@ export default function ProjectDetailPage() {
           </section>
         </div>
       </div>
+
+      {/* ── EDIT MODAL ────────────────────────────────── */}
+      {showEdit && (
+        <div className="pd-modal-overlay" onClick={() => { if (!editSaving) setShowEdit(false); }}>
+          <div className="pd-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pd-modal-head">
+              <div className="pd-modal-title-wrap">
+                <div className="pd-icon-box">
+                  <PenLine size={18} />
+                </div>
+                <div>
+                  <h2 className="pd-modal-title">Edit Project</h2>
+                  <p className="pd-modal-subtitle">Update {project.name}.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="pd-modal-close"
+                onClick={() => { if (!editSaving) setShowEdit(false); }}
+                aria-label="Close edit"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="pd-edit-form">
+              {editError && <div className="pd-edit-error">{editError}</div>}
+
+              <div className="pd-field">
+                <label className="pd-field-label" htmlFor="pd-edit-name">Project Name *</label>
+                <input
+                  id="pd-edit-name"
+                  type="text"
+                  className="pd-field-input"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  placeholder="e.g. CampusConnect"
+                />
+              </div>
+
+              <div className="pd-field">
+                <label className="pd-field-label" htmlFor="pd-edit-desc">Description</label>
+                <textarea
+                  id="pd-edit-desc"
+                  className="pd-field-input pd-field-textarea"
+                  rows={3}
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  placeholder="Short project description"
+                />
+              </div>
+
+              <div className="pd-field-grid">
+                <div className="pd-field">
+                  <label className="pd-field-label" htmlFor="pd-edit-status">Status</label>
+                  <select
+                    id="pd-edit-status"
+                    className="pd-field-input"
+                    value={editForm.status}
+                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                  >
+                    <option value="On Track">On Track</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Review">Review</option>
+                    <option value="Completed">Completed</option>
+                    <option value="On Hold">On Hold</option>
+                  </select>
+                </div>
+                <div className="pd-field">
+                  <label className="pd-field-label" htmlFor="pd-edit-progress">Progress (%)</label>
+                  <input
+                    id="pd-edit-progress"
+                    type="number"
+                    min="0"
+                    max="100"
+                    className="pd-field-input"
+                    value={editForm.progress}
+                    onChange={(e) => setEditForm({ ...editForm, progress: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="pd-field">
+                <label className="pd-field-label" htmlFor="pd-edit-repo">Repository URL</label>
+                <input
+                  id="pd-edit-repo"
+                  type="text"
+                  className="pd-field-input"
+                  value={editForm.repositoryUrl}
+                  onChange={(e) => setEditForm({ ...editForm, repositoryUrl: e.target.value })}
+                  placeholder="https://github.com/..."
+                />
+              </div>
+
+              <div className="pd-field">
+                <label className="pd-field-label" htmlFor="pd-edit-tech">Technologies (comma-separated)</label>
+                <input
+                  id="pd-edit-tech"
+                  type="text"
+                  className="pd-field-input"
+                  value={editForm.technologies}
+                  onChange={(e) => setEditForm({ ...editForm, technologies: e.target.value })}
+                  placeholder="React, Node.js, MongoDB"
+                />
+              </div>
+
+              <div className="pd-modal-actions">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => { if (!editSaving) setShowEdit(false); }}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" disabled={editSaving}>
+                  {editSaving ? (
+                    <>
+                      <Loader2 size={15} className="pd-spin" />
+                      <span>Saving…</span>
+                    </>
+                  ) : (
+                    <span>Save Changes</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
