@@ -23,10 +23,11 @@ app.use(
 );
 
 // CORS configuration
-const allowedOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
 app.use(
   cors({
     origin: (origin, callback) => {
+      // Read lazily so .env is loaded (dotenv runs after module evaluation)
+      const allowedOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
       // Allow requests with no origin (like mobile apps, curl, or Postman)
       if (!origin || origin === allowedOrigin) {
         callback(null, true);
@@ -57,7 +58,16 @@ app.use(mongoSanitize());
 // General rate limiter across all /api routes
 app.use('/api', generalLimiter);
 
-// Health check endpoint
+// Health check endpoints (liveness only — do not claim DB/LLM/B2 status here)
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Baton API is running',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
+});
+
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     success: true,
